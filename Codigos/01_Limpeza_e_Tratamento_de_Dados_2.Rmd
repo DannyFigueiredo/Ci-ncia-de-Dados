@@ -1,0 +1,118 @@
+---
+title: "Ciência de Dados"
+author: "Danielle Figueiredo"
+date: "31/03/2021"
+output:
+  html_document: default
+  html_notebook: default
+subtitle: "Limpeza e Tratamento de Dados - Tempo"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+-----
+
+*Observação: A função `knitr::kable()` é usada nesse documento para que uma versão mais apresentável da tabela de dados seja vista no arquivo HTML. Algumas alternativas para tabelas podem ser encontradas nesse [link](https://gomesfellipe.github.io/post/2018-01-12-tabelas-incriveis-com-r/tabelas-incriveis-com-r/).*
+
+## Ambientação dos Dados
+
+O conjunto de dados trabalhados neste documento trata das características do tempo e quais as condições que favorecem a pratica de esportes.
+
+## Import de Dados
+
+Como o conjunto de dados está em uma pasta diferente do código, utilizamos a função `file.choose()` para escolher o caminho do arquivo através de uma caixa de diálogo.
+
+```{r}
+dados = data.frame( read.csv( file.choose(), header = TRUE, sep = ";", 
+                              na.strings = "", stringsAsFactors = TRUE ) )
+knitr::kable( head(dados) )
+```
+
+## Resumo dos Dados
+
+```{r}
+summary( dados )
+```
+
+Exsitem 3 variáveis qualitativas e 2 quantitativas. Definiremos como padrão para essas colunas:
+
+* **_aparência_** - sol, nublado ou chuva
+* **_temperatura_** - entre -130°F e 130°F
+* **_umidade_** - entre 0 e 100
+* **_vento_** - falso ou verdadeiro
+* **_jogar_** - sim ou não
+
+E observando a saída do `summary()` podemos perceber o que é necessário consertar em cada uma das colunas:
+
+* **_aparência_** - tratar a classificação 'menos' (Falta de padronização)
+* **_temperatura_** - tratar as temperaturas fora do intervalo (Dados fora do domínio)
+* **_umidade_** - tratar os valores nulos e os que estejam fora do intervalo (Valores nulos e Dados fora do domínio)
+* **_vento_** - tratar valores nulos (Valores nulos)
+* **_jogar_** - não precisa de ajustes
+
+## Análise Exploratória e Tratamento de dados
+
+#### 1. Aparencia
+
+```{r}
+# Verifica classificação
+summary( dados$Aparencia )
+# Linhas afetadas
+knitr::kable( dados[ ! dados$Aparencia %in% c('chuva', 'nublado', 'sol'), ] )
+# abordagem: substitui pela moda segundo a classificação da coluna Jogar
+dados[ (! dados$Aparencia %in% c('chuva', 'nublado', 'sol')) 
+       & dados$Jogar == "sim", ]$Aparencia = 'sol'
+# resignificando os níveis
+dados$Aparencia = factor( dados$Aparencia )
+# Verificação das classificações
+summary( dados$Aparencia )
+```
+
+#### 2. Temperatura
+
+```{r}
+# verifica o domínio
+summary( dados$Temperatura )
+# Quais linhas estão fora do intervalo?
+knitr::kable( dados[ dados$Temperatura < -130 | dados$Temperatura > 130, ] )
+# Existem dados nulos?
+summary( is.na( dados$Temperatura ) )
+# Substitui os valores fora do intervalo pela mediana
+dados[ dados$Temperatura < -130 | dados$Temperatura > 130, ]$Temperatura = 
+  median( dados$Temperatura )
+# Verficando a mudanca
+summary( dados$Temperatura )
+```
+
+#### 3. Umidade
+
+```{r}
+# Verificação de domínio
+summary( dados$Umidade )
+# calculo da mediana
+med = median( dados$Umidade, na.rm = TRUE)
+# Linhas que precisam ser consertadas
+knitr::kable( dados[ dados$Umidade < 0 | dados$Umidade > 100 | is.na( dados$Umidade ), ] )
+# Substituir os valores fora do intervalo
+dados[ dados$Umidade < 0 | dados$Umidade > 100 | is.na( dados$Umidade ), ]$Umidade = med
+# Verificar as correções
+summary( dados$Umidade )
+```
+
+#### 4. Vento
+
+```{r}
+# verificar as classificaçoes
+summary( dados$Vento )
+# Descobrir as linhas afetadas
+knitr::kable( dados[ ! dados$Vento %in% c('VERDADEIRO', "FALSO"), ] )
+# Substituir pela moda
+dados[ ! dados$Vento %in% c('VERDADEIRO', "FALSO"), ]$Vento = 'FALSO'
+# Reclassificar níveis
+dados$Vento = factor( dados$Vento )
+# Verificar as correções
+summary( dados$Vento )
+```
+

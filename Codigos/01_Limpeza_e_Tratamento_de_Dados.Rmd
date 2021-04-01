@@ -1,0 +1,250 @@
+---
+title: "Ciência de Dados"
+author: "Danielle Figueiredo"
+date: "30/03/2021"
+output:
+  html_document: default
+  html_notebook: default
+subtitle: "Limpeza e Tratamento de Dados - Churn"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+-----
+
+*Observação: A função `knitr::kable()` é usada nesse documento para que uma versão mais apresentável da tabela de dados seja vista no arquivo HTML. Algumas alternativas para tabelas podem ser encontradas nesse [link](https://gomesfellipe.github.io/post/2018-01-12-tabelas-incriveis-com-r/tabelas-incriveis-com-r/).*
+
+## Ambientação dos Dados
+
+O conjunto de dados trabalhados neste documento trata da rotatividade de clientes. Com base nisso, pretendemos criar um modelo que prediga se um cliente possui ou não o perfil de quem cancelará o contrato.
+
+## Import de Dados
+
+Como o conjunto de dados está em uma pasta diferente do código, utilizamos a função `file.choose()` para escolher o caminho do arquivo através de uma caixa de diálogo.
+
+A função `read.csv()` permite a leitura do arquivo e alguns argumentos deste função foram utilizados para manipulação dos dados, como: 
+
+* `sep` - identifica o caractere separador do arquivo (por _default_, o separador é uma vírgula)
+* `na.strings` - troca os valores 'NA' identificado pelo R (o equivalente a _null_ do banco de dados) por uma string determinada
+* `stringsAsFactors` - identifica as strings com a classe _Factor_, o que restringe o campo de informação para algumas possibilidades
+
+```{r}
+dados = read.csv( file.choose(), sep = ";", na.strings = "", stringsAsFactors = TRUE )
+knitr::kable( head(dados) )
+```
+
+## Resumo dos dados
+
+O resumo dos dados nos ajuda a indentificar as principais medidas para as variáveis numéricas e oferece um resumo da abrengencia das variáveis qualitativas.
+
+```{r}
+summary(dados)
+```
+
+
+## Nomear as colunas
+
+É comum que os dados não possuam identificação para as colunas, por isso é necessário saber adicioná-los manualmente.
+
+```{r}
+colnames(dados) = c('id', 'score', 'estados', 'generos', 'idade', 'patrimonio', 'saldo', 
+                    'produtos', 'temCartaoCredito', 'ativo', 'salario', 'saiu')
+knitr::kable( head(dados) )
+```
+
+## Transformando em Data Frame
+
+A classe de dados que melhor se adequa aos conjuntos de dados no R, são os data frames, por isso converteremos a tabela.
+
+```{r}
+dados = data.frame(dados)
+knitr::kable( head(dados) )
+```
+
+## Análise Exploratória de Dados
+
+### 1.  Variáveis categóricas
+
+* Estados
+```{r}
+counts = table( dados$estados )
+counts
+barplot( counts, main = "Estados", xlab = "Estados", ylab = "Frequencia Absoluta")
+```
+
+É possível observar que os estados mais expressívos para o negócio são: PR (Paraná), RS (Rio Grande do Sul) e SC (Santa Catarina). Para os demais estados, a proporção em que são encontradas é indício de que pode afetar o modelo.
+
+* Gêneros
+```{r}
+counts = table( dados$generos )
+counts
+barplot( counts, main = "Gêneros", xlab = "Gêneros", ylab = "Frequencia Absoluta")
+```
+
+Já para os dados de gênero, podemos observar a multiplicidade de categorias que possuem o mesmo significado.
+
+### 2.  Variáveis quantitativas
+
+* Score
+```{r}
+summary( dados$score )
+boxplot( dados$score )
+hist( dados$score , main = "Histograma", xlab = "Score", ylab = "Frequencia Absoluta")
+```
+
+Score é a pontuação de crédito do cliente. Então, além de verificar o domínio em que esta pontuação está inserida (entre 0 e 1000), podemos observar o comportamento dos dados. Não foi encontrada anormalidade nessa coluna.
+
+* Idade
+
+```{r}
+summary( dados$idade )
+boxplot( dados$idade )
+hist( dados$idade , main = "Histograma", xlab = "Saldo", ylab = "Frequencia Absoluta")
+```
+
+Quanto ao domínio da idade, podemos observar que existem dados que precisam ser tratados, uma vez que uma pessoa não pode ter idade negativa e que é quase impossível que alguém viva até os 140 anos (confirmados pelo _boxplot_). Entretanto, os quartis mostram que há conformidade na maioria dos dados.
+
+* Saldo
+
+```{r}
+summary( dados$saldo/1000000 )
+boxplot( dados$saldo/1000000, main = "Boxplot (em milhões)" )
+hist( dados$saldo/1000000 , main = "Histograma (em milhões)", xlab = "Saldo", ylab = "Frequencia Absoluta")
+```
+
+Há uma expressividade de pessoas com saldo zerado, mas em geral os dados estão em conformidade com o esperado.
+
+* Salário
+
+```{r}
+summary( dados$salario/1000000000 )
+boxplot( dados$salario/1000000000 , main = "Boxplot (em bilhões)" )
+hist( dados$salario/1000000000 , main = "Histograma (em bilhões)", xlab = "Salário anual", ylab = "Frequencia Absoluta")
+```
+
+Nessa colunas temos valores do tipo 'NA' que não são aceitos em modelos matemáticos, por isso precisa de tratamento.
+
+## Tratamento de Dados
+
+### 1. Valores nulos - NAs
+
+```{r}
+# Obtendo as linhas em que faltam valores em alguma coluna
+knitr::kable( dados[ !complete.cases( dados ), ] )
+```
+
+A forma mais usual de tratamento para valores faltantes é substituição por valores característicos que mais aparecem (moda) ou por aqueles que resumem os dados (média ou mediana). Ou seja, para variáveis quantitativas, podemos substituir os NA's pelo valor da mediana e, para variáveis qualitativas, pelo  valor mais frequente. 
+
+```{r}
+# mediana do salário
+median( dados$salario, na.rm = TRUE )
+# atribuir mediana aos valores faltantes
+dados[ is.na( dados$salario ), ]$salario = median( dados$salario, na.rm = TRUE )
+# Verificando as linhas em que faltam valores em alguma coluna
+knitr::kable( dados[ !complete.cases( dados ), ] )
+```
+
+### 2. Falta de padronização
+
+Quando há falta de padronização, precisamos descobrir o domínio dos dados e então, restringir o domínio segundo a significância dos dados ou dos valores que mais aparecem. Para então os converter em _Fatores_, já que os modelos matemáticos não consideram variáveis categóricas propriamente ditas, mas seus _níveis_.
+
+```{r}
+# Quais as categorias existente na coluna
+unique( dados$generos )
+# Descobrindo os principais valores
+summary( dados$generos )
+# Padronizando
+dados[ is.na( dados$generos ) | dados$generos == "M", ]$generos = "Masculino"
+dados[ dados$generos == "F" | dados$generos == "Fem", ]$generos = "Feminino"
+# Verificar resultados
+summary( dados$generos )
+# Remover os fatores  não utilizados
+dados$generos = factor( dados$generos )
+# Verifica se os níveis foram removidos
+summary( dados$generos )
+```
+
+### 3. Dados fora do domínio
+
+Assim como fizemos com os valores faltantes, substituiremos as linhas que apresentam valores fora do domínio pela mediana.
+
+* variáveis quantitativas
+
+```{r}
+# Verificando os dados
+summary( dados$idade )
+# Quais as linhas em que a idade está fora do intervalo aceitável
+# Definimos intervalo aceitável entre 0 e 110 anos
+knitr::kable( dados[ dados$idade < 0 | dados$idade > 110, ] )
+# Existem dados nulos?
+summary( is.na( dados$idade ) )
+# Substituição
+dados[ dados$idade < 0 | dados$idade > 110, ]$idade = median( dados$idade )
+# Verificando a substituição
+summary( dados$idade )
+```
+
+* variáveis qualitativas 
+
+```{r}
+# Verifica as categorias
+unique( dados$estados )
+# Descobrir qual das categorias é a mais comum
+summary( dados$estados )
+# Preencher trocar os que tiverem menor frequencia para o maior grupo
+dados[ !dados$estados %in% c("RS", "SC", "PR"), ]$estados = "RS"
+# Verificando as categorias
+summary( dados$estados )
+# Eliminando os níveis zerados
+dados$estados = factor( dados$estados )
+# Nova verificação
+summary( dados$estados )
+```
+
+Note que nem sempre a melhor opção é juntar todos as classificações no maior grupo. A escolha dependerá muito mais do tipo de negócio e como os grupos se comportam. Para esse caso em específico, o estado do Rio Grande do Sul possui uma proporção muito maior do que as demais, o que pode justificar a escolha feita.
+
+### 4. Dados duplicados
+
+```{r}
+# verificando duplicidade
+x = dados[ duplicated( dados$id ), ]
+knitr::kable( x )
+# Excluir a linha duplicada pelo índice
+dados = dados[ -c(82), ]
+# Verificar exclusão
+x = dados[ duplicated( dados$id ), ]
+x$id
+```
+
+### 5. Outliers
+
+A pergunta principal a ser respondida é: que métrica usar para representar a uma conformidade dos dados? Em geral, podemos utilizar o desvio padrão.
+
+```{r}
+# criando um parâmetro: desvio-padrão
+desv = sd( dados$salario, na.rm = TRUE)
+# dados não conformes a padronização
+knitr::kable( dados[ dados$salario >= 2*desv, ] )
+```
+
+Forma alternativa, que não considera os NA's:
+
+```{r}
+par( mfrow = c(1, 2), oma = c(1, 1, 1, 1), mar = c(2, 2, 1, 1) )
+boxplot( dados$salario )
+boxplot( dados$salario , outline = FALSE )
+```
+
+O gráfico acima mostra que a diferença dos dados quando removemos os pontos considerados outliers (_pontos fora da curva_).
+
+```{r}
+x = boxplot( dados$salario )$out
+x
+# Atualizamos os outliers para o valor da mediana
+dados[ dados$salario >= 2*desv, ]$salario = median( dados$salario )
+# Verificação
+dados[ dados$salario >= 2*desv, ]$salario
+```
+
